@@ -1,15 +1,23 @@
+import scala.concurrent.{Future}
+import scala.util.{Success, Failure}
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, ActorSystem}
+import akka.pattern.ask
+import akka.util.Timeout
+import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.server.{Route}
 import akka.http.scaladsl.server.Directives._
 
-class RestApi extends BoxOfficeApi  {
+class RestApi(system: ActorSystem) extends BoxOfficeApi  {
   def routes: Route = 
       pathPrefix("events") {
         pathEndOrSingleSlash {
           get{
-            complete("to be implement...\n")
+            onComplete(getEvents()) { 
+              case Success(x) => complete(s"result: ${x}\n")
+              case Failure(e) => complete(s"exception: ${e}\n")
+            }
           }
         }
       } ~
@@ -33,12 +41,17 @@ class RestApi extends BoxOfficeApi  {
           }
         }
       }
-    def createBoxOffice(): ActorRef  = context.actorOf(BoxOffice.progs())
+    def createBoxOffice(): ActorRef  = system.actorOf(BoxOffice.props())
+    val requestTimeout = Timeout(2, TimeUnit.SECONDS)
 }
 
 trait BoxOfficeApi {
+  import BoxOffice._
+
   def createBoxOffice(): ActorRef
   lazy val boxOffice: ActorRef = createBoxOffice()
+  implicit def requestTimeout: Timeout  //ask 需要
 
-  //def getEvents = 
+  def getEvents(): Future[String] = boxOffice.ask(GetEvents).mapTo[String]
 }
+

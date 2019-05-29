@@ -27,7 +27,7 @@ object Main extends App {
   implicit val system: ActorSystem = ActorSystem()
   implicit val ec: ExecutionContext = system.dispatcher
 
-  val route = (new RestApi).routes
+  val route = (new RestApi(system)).routes
 
   implicit val materializer = ActorMaterializer()
   val bindingFuture: Future[ServerBinding] = Http().bindAndHandle(route, host, port)
