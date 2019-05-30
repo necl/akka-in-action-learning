@@ -16,9 +16,9 @@ object BoxOffice {
 
 
   //response
-  case class EventCreated(event: Event)
-  case object EventExists
-
+  sealed trait EventResponse
+  case class EventCreated(event: Event) extends EventResponse
+  case object EventExists extends EventResponse
 
   def props(): Props = Props(new BoxOffice())
 }

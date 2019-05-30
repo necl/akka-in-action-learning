@@ -9,15 +9,17 @@ import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.server.{Route}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.model.StatusCodes.{OK}
+import akka.http.scaladsl.model.StatusCodes.{OK, BadRequest}
 
-class RestApi(system: ActorSystem) extends BoxOfficeApi  {
+
+class RestApi(system: ActorSystem) extends BoxOfficeApi 
+  with EventMarshalling   {
   def routes: Route = 
       pathPrefix("events") {
         pathEndOrSingleSlash {
           get{
             onComplete(getEvents()) { 
-              case Success(x) => complete(OK, "")
+              case Success(x) => complete(OK, x)
               case Failure(e) => complete(s"exception: ${e}\n")
             }
           }
@@ -26,7 +28,18 @@ class RestApi(system: ActorSystem) extends BoxOfficeApi  {
       pathPrefix("events" / Segment ) { event => 
         pathEndOrSingleSlash {
           post {
-              complete(s"post $event  to be implement...\n")
+            entity(as[EventDescription]) { eventDesc =>
+              onComplete(createEvent(event, eventDesc.tickets)) { 
+                case Success(x) => x match {
+                  case BoxOffice.EventCreated(ev) => complete(OK, ev)
+                  case BoxOffice.EventExists => 
+                    val err = Error(s"$event event exists already.")
+                    complete(BadRequest, err)
+                }
+                case Failure(e) => complete(s"exception: ${e}\n")
+              }
+
+            }
           } ~
           get {
               complete(s"get $event  to be implement...\n")
@@ -55,5 +68,7 @@ trait BoxOfficeApi {
   implicit def requestTimeout: Timeout  //ask 需要
 
   def getEvents()  = boxOffice.ask(GetEvents).mapTo[Events]
-}
+  def createEvent(name: String, count: Int) = boxOffice.ask(
+                CreateEvent(name, count)).mapTo[EventResponse]
 
+}
