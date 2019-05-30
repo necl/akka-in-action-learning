@@ -3,11 +3,13 @@ import scala.util.{Success, Failure}
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.pattern.ask
+
 import akka.util.Timeout
 import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.server.{Route}
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.model.StatusCodes.{OK}
 
 class RestApi(system: ActorSystem) extends BoxOfficeApi  {
   def routes: Route = 
@@ -15,7 +17,7 @@ class RestApi(system: ActorSystem) extends BoxOfficeApi  {
         pathEndOrSingleSlash {
           get{
             onComplete(getEvents()) { 
-              case Success(x) => complete(s"result: ${x}\n")
+              case Success(x) => complete(OK, "")
               case Failure(e) => complete(s"exception: ${e}\n")
             }
           }
@@ -52,6 +54,6 @@ trait BoxOfficeApi {
   lazy val boxOffice: ActorRef = createBoxOffice()
   implicit def requestTimeout: Timeout  //ask 需要
 
-  def getEvents(): Future[String] = boxOffice.ask(GetEvents).mapTo[String]
+  def getEvents()  = boxOffice.ask(GetEvents).mapTo[Events]
 }
 

@@ -1,12 +1,19 @@
+import scala.concurrent.Future
 import akka.actor.{Actor, ActorRef, Props}
+import akka.pattern.{ask, pipe}
+
+import akka.util.Timeout
+import java.util.concurrent.TimeUnit
 
 object BoxOffice {
 
   case class Event(name: String, tickets: Int)
+  case class Events(events: Vector[Event])
 
   case class CreateEvent(name: String, tickets: Int) 
   case class  GetEvent(name: String)
   case object GetEvents
+
 
   //response
   case class EventCreated(event: Event)
@@ -18,6 +25,8 @@ object BoxOffice {
 
 class BoxOffice extends Actor {
   import BoxOffice._
+  import context._  //for implicit ExecutionContext for Future.sequence
+
 
   def receive= {
     case CreateEvent(name, tickets) =>
@@ -37,9 +46,18 @@ class BoxOffice extends Actor {
       context.child(name).fold(notFound)(getEvent)
 
     case GetEvents =>
-      def getEvents = context.children.map{ child =>
-        self.ask(GetEvent(child.path.name)).mapTo[Option[Event]]
+      implicit def timeout = Timeout(2, TimeUnit.SECONDS)
+      def getEvents(): Iterable[Future[Option[Event]]] = 
+        context.children.map { child =>
+          self.ask(GetEvent(child.path.name)).mapTo[Option[Event]]
       }
+      def convertToEvents(f: Future[Iterable[Option[Event]]]) =
+        f.map(_.flatten).map(l=> Events(l.toVector))
+
+      val evsFutrue: Future[Iterable[Option[Event]]] =
+                                  Future.sequence(getEvents)
+
+      pipe(convertToEvents(evsFutrue)) to sender()
 
     case _ =>
   }
